@@ -4,7 +4,7 @@ import tensorflow as tf
 import tensorflow.examples.tutorials.mnist.input_data as input_data
 
 INPUT_NODE = 784
-OUTPUT_NONE = 10
+OUTPUT_NODE = 10
 IMAGE_SIZE = 28
 NUM_CHANNELS = 1
 NUM_LABELS = 10
@@ -39,7 +39,7 @@ def inference(input_tensor,train, regularizer):
 	pool_shape = pool2.get_shape().as_list()
         nodes = pool_shape[1] * pool_shape[2] * pool_shape[3]
 
-	reshaped = tf.reshape(pool2, [pool_shape[0], nodes])
+	reshaped = tf.reshape(pool2, [pool_shape[0],nodes])
 
 	with tf.variable_scope('layer5-fc1'):
 	  fc1_weights = tf.get_variable( "weight",[nodes,FC_SIZE],initializer = tf.truncated_normal_initializer(stddev=0.1))
