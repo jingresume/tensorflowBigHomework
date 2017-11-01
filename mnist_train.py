@@ -12,21 +12,21 @@ IMAGE_SIZE = 28
 NUM_CHANNELS = 1
 NUM_LABELS = 10
 
-CONV1_DEEP = 32
-CONV1_SIZE = 5
+CONV1_DEEP = 32 
+CONV1_SIZE = 5 
 
 CONV2_DEEP = 64
 CONV2_SIZE = 5
 
-FC_SIZE = 512
+FC_SIZE = 1024 
 
 
 
 BATCH_SIZE = 100
-LEARNING_RATE_BASE = 0.7
+LEARNING_RATE_BASE = 0.1
 LEARNING_RATE_DECAY = 0.99
-REGULARAZTION_RATE = 0.0001
-TRAINING_STEPS = 30000
+REGULARAZTION_RATE = 0.001
+TRAINING_STEPS = 100000
 MOVING_AVERAGE_DECAY = 0.99
 
 MODEL_SAVE_PATH = "model/"
@@ -63,7 +63,7 @@ def inference(input_tensor,train, regularizer):
             tf.add_to_collection('losses',regularizer(fc1_weights))
           fc1_biases = tf.get_variable("bias", [FC_SIZE], initializer=tf.constant_initializer(0.1))
           fc1 = tf.nn.relu(tf.matmul(reshaped, fc1_weights) + fc1_biases)
-          if train: fc1 = tf.nn.dropout(fc1,0.5)
+          if train: fc1 = tf.nn.dropout(fc1,0.4)
 
         with tf.variable_scope('layer6-fc2'):
           fc2_weights = tf.get_variable("weight",[FC_SIZE,NUM_LABELS],initializer=tf.truncated_normal_initializer(stddev=0.1))
@@ -94,7 +94,7 @@ def train(mnist):
 
 	cross_entropy_mean = tf.reduce_mean(cross_entropy)
 	loss = cross_entropy_mean + tf.add_n(tf.get_collection('losses'))
-
+#	loss = cross_entropy_mean
 	learning_rate = tf.train.exponential_decay(LEARNING_RATE_BASE,global_step,mnist.train.num_examples / BATCH_SIZE,LEARNING_RATE_DECAY)
 
 	train_step = tf.train.GradientDescentOptimizer(learning_rate).minimize(loss,global_step=global_step)
@@ -106,7 +106,7 @@ def train(mnist):
 	with tf.Session() as sess:
 	  tf.initialize_all_variables().run()
 
-	  for i in range(TRAINING_STEPS):
+	  for i in range(TRAINING_STEPS+1):
 	  	xs,ys = mnist.train.next_batch(BATCH_SIZE)
 	  	reshaped_xs = np.reshape(xs, (BATCH_SIZE, IMAGE_SIZE, IMAGE_SIZE, NUM_CHANNELS))
 	  	_,loss_value,step = sess.run([train_op,loss,global_step],feed_dict={x:reshaped_xs, y_:ys})
@@ -117,6 +117,30 @@ def train(mnist):
 			saver.save(sess,os.path.join(MODEL_SAVE_PATH,MODEL_NAME),global_step=global_step)
 
 
+
+def test(mnist):
+	 with tf.Graph().as_default() as g:
+	  x = tf.placeholder(tf.float32, [10000,IMAGE_SIZE,IMAGE_SIZE,NUM_CHANNELS], name='x-input')
+          y_ = tf.placeholder(tf.float32, [None,OUTPUT_NODE], name='y-input')
+	  regularizer = tf.contrib.layers.l2_regularizer(REGULARAZTION_RATE)
+
+          y = inference(x,False,regularizer)
+	  correct_prediction = tf.equal(tf.argmax(y, 1), tf.argmax(y_, 1))
+          accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+	  variable_averages = tf.train.ExponentialMovingAverage(MOVING_AVERAGE_DECAY)
+          variable_to_restore = variable_averages.variables_to_restore()
+          saver = tf.train.Saver(variable_to_restore)
+
+	  with tf.Session() as sess:
+		ckpt = tf.train.get_checkpoint_state(MODEL_SAVE_PATH)
+		if ckpt and ckpt.model_checkpoint_path:
+		  saver.restore(sess, "model/model.ckpt-100001")
+		  print(sess.run(accuracy, feed_dict = {x: np.reshape(mnist.test.images, (mnist.test.num_examples, IMAGE_SIZE, IMAGE_SIZE,NUM_CHANNELS)),y_: mnist.test.labels}))
+		else :
+		  print("not find model")
+		  return
+	  
+
 def main(argv=None):
 	if len(sys.argv) <= 1 :
 		print("please input test or train")
@@ -126,7 +150,10 @@ def main(argv=None):
 		mnist = input_data.read_data_sets("data/fashion",one_hot=True)
 		train(mnist)	
 	elif sys.argv[1] =="test" :
+		
 		print("testing")
+		mnist = input_data.read_data_sets("data/fashion",one_hot=True)
+		test(mnist)
 	else :
 		print("please input test or train")
 		exit()
